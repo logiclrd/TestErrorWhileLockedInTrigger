@@ -5,7 +5,7 @@ USE TestErrorWhileLockedInTrigger
 CREATE TABLE TableToTriggerAndLock
 (
   RowID INT NOT NULL PRIMARY KEY IDENTITY(1, 1),
-  Value NVARCHAR(100) NULL
+  ShouldLockTable BIT NOT NULL
 )
 
 CREATE TABLE TableToGenerateError
@@ -19,18 +19,30 @@ GO
 CREATE TRIGGER TR_TableToTriggerAndLock_Insert ON TableToTriggerAndLock INSTEAD OF INSERT
 AS
 
-SELECT TOP 0 *
-  FROM TableToTriggerAndLock WITH (TABLOCKX, HOLDLOCK)
+DECLARE @ShouldLockTable BIT
+
+SELECT @ShouldLockTable = ShouldLockTable
+  FROM INSERTED
+
+INSERT INTO TableToTriggerAndLock (ShouldLockTable)
+SELECT ShouldLockTable
+  FROM INSERTED
+
+IF @ShouldLockTable <> 0
+BEGIN
+  SELECT TOP 0 *
+    FROM TableToTriggerAndLock WITH (TABLOCKX, HOLDLOCK)
+END
 
 INSERT INTO TableToGenerateError (NotNullableColumn) VALUES (NULL)
 
 GO
 
 CREATE PROCEDURE TableToTriggerAndLock_Insert
-  @Value NVARCHAR(100)
+  @ShouldLockTable BIT
 AS
-DECLARE @Results TABLE (RowID INT NOT NULL, Value NVARCHAR(100) NULL)
+DECLARE @Results TABLE (RowID INT NOT NULL, ShouldLockTable BIT NOT NULL)
 
-INSERT INTO TableToTriggerAndLock (Value) OUTPUT INSERTED.* INTO @Results VALUES (@Value)
+INSERT INTO TableToTriggerAndLock (ShouldLockTable) OUTPUT INSERTED.* INTO @Results VALUES (@ShouldLockTable)
 
 SELECT * FROM @Results
