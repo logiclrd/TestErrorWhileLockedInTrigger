@@ -34,7 +34,17 @@ BEGIN
     FROM TableToTriggerAndLock WITH (TABLOCKX, HOLDLOCK)
 END
 
-INSERT INTO TableToGenerateError (NotNullableColumn) VALUES (NULL)
+BEGIN TRY
+  INSERT INTO TableToGenerateError (NotNullableColumn) VALUES (NULL)
+END TRY
+BEGIN CATCH
+  WAITFOR DELAY '00:00:02'
+  ROLLBACK TRANSACTION;
+
+  DECLARE @ErrorMessage NVARCHAR(2047) = REPLACE(ERROR_MESSAGE(), '%', '%%')
+
+  RAISERROR (@ErrorMessage, 20, 1) WITH LOG
+END CATCH
 
 GO
 
